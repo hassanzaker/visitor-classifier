@@ -1,0 +1,75 @@
+.funny-loader {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh; 
+    color: #333;
+    font-family: 'Comic Sans MS', cursive, sans-serif;
+    font-size: 1.5rem;
+    text-align: center;
+  }
+  
+  .spinner-wrapper {
+    display: flex;
+    margin-bottom: 15px;
+  }
+  
+  .spinner {
+    width: 15px;
+    height: 15px;
+    background-color: #007bff;
+    border-radius: 50%;
+    margin: 0 5px;
+    animation: bounce 0.6s infinite alternate;
+  }
+  
+  .spinner-1 {
+    animation-delay: 0s;
+  }
+  
+  .spinner-2 {
+    animation-delay: 0.2s;
+  }
+  
+  .spinner-3 {
+    animation-delay: 0.4s;
+  }
+  
+  @keyframes bounce {
+    from {
+      transform: translateY(0);
+    }
+    to {
+      transform: translateY(-15px);
+    }
+  }
+  
+  .loading-message {
+    font-weight: bold;
+  }
+  
+  .loading-message .dot {
+    animation: blink 1s infinite;
+  }
+  
+  .loading-message .dot:nth-child(1) {
+    animation-delay: 0s;
+  }
+  
+  .loading-message .dot:nth-child(2) {
+    animation-delay: 0.3s;
+  }
+  
+  .loading-message .dot:nth-child(3) {
+    animation-delay: 0.6s;
+  }
+  
+  @keyframes blink {
+    0%, 100% {
+      opacity: 0;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
