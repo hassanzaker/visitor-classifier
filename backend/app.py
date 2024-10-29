@@ -1,10 +1,8 @@
 import json
-
 import redis
 from flask_caching import Cache
 from openai import OpenAI
 from selenium import webdriver
-from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from flask import Flask, request, jsonify, Response
@@ -13,43 +11,45 @@ import os
 from dotenv import load_dotenv
 from flask_cors import CORS
 
-load_dotenv()  # Load environment variables from .env file
+# Load environment variables (such as API keys)
+load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
-# Initialize Flask and Redis
+# Initialize Flask application and enable CORS for all routes
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app)
 
-
+# Configure Redis cache
 app.config['CACHE_TYPE'] = 'RedisCache'
 app.config['CACHE_REDIS_HOST'] = 'localhost'
 app.config['CACHE_REDIS_PORT'] = 6379
 app.config['CACHE_DEFAULT_TIMEOUT'] = 86400  # Cache timeout in seconds (1 day)
-
-# Configure caching
 cache = Cache(app)
+
+# Initialize Redis client and OpenAI client
 redis_client = redis.StrictRedis(host='localhost', port=6379, db=0, decode_responses=True)
-
 client = OpenAI()
-
 
 @app.route('/submit_answer', methods=['POST'])
 def submit_answer():
+    """Process user's answers, classify based on responses, and return classification labels."""
     data = request.json
     url = data.get('url')
     user_response = data.get('answers')
 
+    # Validate required data fields
     if not user_response:
         return jsonify({'error': 'answers are required'}), 400
-
     if not url:
         return jsonify({'error': 'URL is required'}), 400
 
+    # Retrieve cached category data
     categories_text = redis_client.get("categories_" + url)
     if not categories_text:
         return jsonify({"error": "No category data found for the given URL"}), 404
 
     try:
+        # Send request to OpenAI for classification
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
@@ -80,17 +80,12 @@ def submit_answer():
             top_p=1
         )
 
+        # Parse and clean response
         labels = response.choices[0].message.content.strip()
-        labels = labels.replace("```json", "").replace("```", "").strip()
-        print()
+        labels = labels.replace("```json", "").replace("```", "").strip() # Convert to JSON dictionary
+        labels_json = json.loads(labels)  # Parse the JSON string into a Python dictionary
 
-        try:
-            labels_json = json.loads(labels)  # Parse the JSON string into a Python dictionary
-        except json.JSONDecodeError as e:
-            return jsonify({"error": "Failed to parse JSON", "details": str(e)}), 500
-
-        # Return the JSON response
-        return jsonify(labels_json)
+        return jsonify(labels_json)  # Send JSON response back to client
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -98,19 +93,8 @@ def submit_answer():
 
 
 
-
-@app.route('/scrape', methods=['POST'])
-def scrape_website():
-    data = request.json
-    url = data.get('url')
-
-    if not url:
-        return jsonify({'error': 'URL is required'}), 400
-
-    cached_questions = redis_client.get(url)
-    if cached_questions:
-        return jsonify(eval(cached_questions)), 200
-
+def read_page_content(url):
+    """Use Selenium to fetch and parse website content into readable text."""
     try:
         # Set up Selenium driver
         service = webdriver.chrome.service.Service(ChromeDriverManager().install())
@@ -122,7 +106,14 @@ def scrape_website():
         page_source = driver.page_source
         soup = BeautifulSoup(page_source, 'html.parser')
         text_content = soup.get_text()
+        return text_content, driver
+    except Exception as e:
+        raise e
 
+
+def fetch_categories_from_gpt(text_content, url):
+    """Request OpenAI GPT to generate categories based on the website's content theme."""
+    try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
@@ -157,6 +148,15 @@ def scrape_website():
         # Cache the categories with the categories_URL as the key
         redis_client.setex("categories_" + url, 86400, str(categories_text))  # Cache for 1 day (86400 seconds)
 
+
+        return categories_text
+    except Exception as e:
+        raise e
+
+
+def generate_questions_from_gpt(categories_text, text_content, url):
+    """Request OpenAI GPT to generate classification questions based on content categories."""
+    try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
@@ -190,12 +190,32 @@ def scrape_website():
         # Cache the generated questions with the URL as the key
         redis_client.setex(url, 86400, str(questions_text))  # Cache for 1 day (86400 seconds)
 
-        try:
-            text_data_json = json.loads(questions_text)  # Parse the JSON string into a Python dictionary
-        except json.JSONDecodeError as e:
-            return jsonify({"error": "Failed to parse JSON", "details": str(e)}), 500
+        return questions_text
 
-        # Return the JSON response
+    except Exception as e:
+        raise e
+
+
+@app.route('/scrape', methods=['POST'])
+def scrape_website():
+    """Scrapes website content, generates categories and questions, and caches the results."""
+    data = request.json
+    url = data.get('url')
+
+    if not url:
+        return jsonify({'error': 'URL is required'}), 400
+
+    cached_questions = redis_client.get(url)
+    if cached_questions:
+        return jsonify(eval(cached_questions)), 200   # Return cached questions if available
+
+    try:
+        text_content, driver = read_page_content(url)  # Fetch website content
+        categories_text = fetch_categories_from_gpt(text_content, url)  # Get classification categories
+        questions_text = generate_questions_from_gpt(categories_text, text_content, url)  # Generate questions
+
+        # Convert question data to JSON for response
+        text_data_json = json.loads(questions_text)
         return jsonify(text_data_json)
 
     except Exception as e:
@@ -207,5 +227,6 @@ def scrape_website():
 
 @app.route('/')
 def home():
+    """Root endpoint with a welcome message."""
     return "Welcome!"
 
