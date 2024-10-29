@@ -35,15 +35,4 @@ code {
   }
 }
 
-/* Custom Toast Styling */
-.toast-container {
-  width: 500px !important; /* Increase the width */
-  margin: 0 auto;          /* Center horizontally */
-  left: 50%;               /* Center based on viewport */
-  transform: translateX(-50%); /* Adjust centering */
-}
 
-.toast-message {
-  text-align: left;        /* Align text to left */
-  white-space: pre-wrap;   /* Preserve line breaks for readability */
-}

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';
+
 import HomePage from './components/HomePage';
 import QuestionModal from './components/QuestionModal';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -74,12 +75,12 @@ const App = () => {
 
       // Show a success toast with formatted categories and labels
       toast.success(formattedCategories, {
-        className: "toast-container", // Custom toast styling
-        bodyClassName: "toast-message",
-        position: "top-center",
-        autoClose: 5000 // Auto close toast after 5 seconds
+        duration: 4000,
+        style: {
+            background: '#4caf50',
+            color: '#fff',
+        }
       });
-
       // Delay to keep loading spinner for a brief time before stopping
       setTimeout(() => {
         setLoading(false); // Stop loading spinner
@@ -92,7 +93,7 @@ const App = () => {
   return (
     <div className="container text-center mt-5">
       {/* Toast container for displaying notifications */}
-      <ToastContainer />
+      <Toaster position="top-center" reverseOrder={false} />
 
       {/* Show FunnyLoader during loading, otherwise display the HomePage component */}
       {loading ? <FunnyLoader message={loadingMessage} /> : <HomePage onSubmitUrl={handleSubmitUrl} />}
