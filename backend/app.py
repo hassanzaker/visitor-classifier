@@ -17,6 +17,8 @@ from flask_cors import CORS
 from dynamoDBUtils import *
 
 import secrets
+from playwright.sync_api import sync_playwright
+
 
 # Load environment variables (such as API keys)
 load_dotenv()
@@ -73,7 +75,7 @@ def get_user_data():
 def get_question():
     try:
         url = request.args.get('url')
-        user_id = request.remote_addr
+        user_id = request.headers.get('X-Forwarded-For', request.remote_addr)
         visitor = get_visitor(user_id)
 
         # Iterate through each site in the user's data
@@ -91,7 +93,7 @@ def submit_answer():
     """Process user's answers, classify based on responses, and return classification labels."""
     data = request.json
     url = data.get('url')
-    user_id = request.remote_addr
+    user_id = request.headers.get('X-Forwarded-For', request.remote_addr)
     user_response = data.get('answers')
 
     # Validate required data fields
@@ -162,17 +164,26 @@ def submit_answer():
 def read_page_content(url):
     """Use Selenium to fetch and parse website content into readable text."""
     try:
-        # Set up Selenium driver
-        service = webdriver.chrome.service.Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service)
-        driver.get(url)
-        driver.implicitly_wait(10)
-
-        # Get page source and parse it with BeautifulSoup
-        page_source = driver.page_source
-        soup = BeautifulSoup(page_source, 'html.parser')
-        text_content = soup.get_text()
-        return text_content, driver
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            page.goto(url)
+            text_content = page.content()  # Get HTML content
+            browser.close()
+            soup = BeautifulSoup(text_content, 'html.parser')
+            text_content = soup.get_text().strip()
+        return text_content
+        # # Set up Selenium driver
+        # service = webdriver.chrome.service.Service(ChromeDriverManager().install())
+        # driver = webdriver.Chrome(service=service)
+        # driver.get(url)
+        # driver.implicitly_wait(10)
+        #
+        # # Get page source and parse it with BeautifulSoup
+        # page_source = driver.page_source
+        # soup = BeautifulSoup(page_source, 'html.parser')
+        # text_content = soup.get_text()
+        # return text_content, driver
     except Exception as e:
         raise e
 
@@ -298,7 +309,7 @@ def scrape_website():
     """Scrapes website content, generates categories and questions, and caches the results."""
     data = request.json
     url = data.get('url')
-    user_id = request.remote_addr
+    user_id = request.headers.get('X-Forwarded-For', request.remote_addr)
     print("user_id", user_id)
     site_name = get_site_name(url)
 
@@ -310,11 +321,13 @@ def scrape_website():
         return jsonify(eval(cached_questions)), 200   # Return cached questions if available
 
     try:
-        text_content, driver = read_page_content(url)  # Fetch website content
+        text_content = read_page_content(url)  # Fetch website content
+        print(text_content)
         summary = get_website_summary(text_content, site_name)
+
         categories_text = fetch_categories_from_gpt(text_content, site_name)  # Get classification categories
         questions_text = generate_questions_from_gpt(categories_text, text_content, site_name)  # Generate questions
-
+        print("questions_text", questions_text)
         questions = json.loads(questions_text)
         questions['summary'] = summary
         add_url(str(user_id), site_name, questions['questions'], summary)
@@ -323,9 +336,9 @@ def scrape_website():
 
     except Exception as e:
         return jsonify({'error': str(e.__traceback__)}), 500
-
-    finally:
-        driver.quit()
+    #
+    # finally:
+    #     driver.quit()
 
 
 @app.route('/flask/home')
