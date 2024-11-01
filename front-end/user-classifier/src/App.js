@@ -1,26 +1,124 @@
-import React, { useState } from 'react';
-import axios from 'axios';
+import React, { useEffect, useState } from 'react';
+import Sidebar from './components/Sidebar';
+import FunnyLoader from './components/FunnyLoader';
+import './App.css';
+
 import { Toaster } from 'react-hot-toast';
 import toast from 'react-hot-toast';
-
-import HomePage from './components/HomePage';
-import QuestionModal from './components/QuestionModal';
-import LoadingSpinner from './components/LoadingSpinner';
-import FunnyLoader from './components/FunnyLoader';
-
+import axios from 'axios';
+import InfoWindow from './components/InfoWindow';
 
 // Set axios Default URL
-axios.defaults.baseURL = 'http://127.0.0.1:5000/';
+// axios.defaults.baseURL = 'http://127.0.0.1:5000/flask/';
+axios.defaults.baseURL = 'https://api.movielads.net/flask/';
 
 
-// Main App component
 const App = () => {
-  // State variables
-  const [questions, setQuestions] = useState([]); // Stores questions fetched from the backend
-  const [loading, setLoading] = useState(false); // Controls loading state
-  const [showModal, setShowModal] = useState(false); // Controls the visibility of the QuestionModal
+  const [userId, setUserid] = useState({});
+  const [chats, setChats] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [activeChat, setActiveChat] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState(''); // Stores the loading message to be displayed
   const [url, setUrl] = useState(""); // Stores the website URL entered by the user
+  const [questions, setQuestions] = useState([]); // Stores questions fetched from the backend
+  const [summary, setSummary] = useState('');
+
+  useEffect(() => {
+    fetchData(); // Call the async function
+  }, []);
+
+
+  useEffect(() => {
+    console.log(activeChat);
+    if (activeChat)
+      getQuestions();
+    else
+      fetchData();
+  }, [activeChat]);
+
+  // Define the async function inside useEffect
+  const fetchData = async () => {
+    try {
+      const response = await axios.get("/user");
+      setUserid(response.data.userId);
+      setChatNames(response.data.sites);
+      setCategories(response.data.categories);
+    } catch (error) {
+      console.error("Error fetching data", error);
+    } finally {
+      setLoading(false); // Set loading to false after data is fetched
+    }
+  };
+
+  const getQuestions = async () => {
+    setLoadingMessage(`Loading ${activeChat}`); // Set loading message with site name
+    setLoading(true); // Enable loading spinner
+
+    try {
+      const response = await axios.get('/question', {
+        params: {
+          url: activeChat
+        }
+      });
+
+      setLoading(false); // Stop loading spinner
+      setQuestions(response.data.questions); // Store the fetched questions
+      setSummary(response.data.summary);
+      if (response.data.categories) {
+        setCategories(response.data.categories);
+      } else {
+        setCategories([]);
+      }
+    } catch (error) {
+      toast.error("Error fetching questions. Please try again."); // Show error toast if request fails
+      setLoading(false); // Stop loading spinner
+    }
+  };
+
+
+  const handleSubmitUrl = async (inputUrl) => {
+    console.log(inputUrl);
+    setUrl(inputUrl); // Store the input URL
+    setLoadingMessage(`Fetching from ${getSiteName(inputUrl)}`); // Set loading message with site name
+    setLoading(true); // Enable loading spinner
+
+    try {
+      // Send a POST request to fetch questions for the given URL
+      const response = await axios.post('/scrape', { url: inputUrl });
+
+      // Delay to simulate loading before showing questions
+      // setTimeout(() => {
+      setLoading(false); // Stop loading spinner
+      setQuestions(response.data.questions); // Store the fetched questions
+      setSummary(response.data.summary);
+      setActiveChat(getSiteName(inputUrl));
+      fetchData();
+      // }, 1000);
+    } catch (error) {
+      toast.error("Error fetching questions. Please try again."); // Show error toast if request fails
+      setLoading(false); // Stop loading spinner
+    }
+  };
+
+  // Handle answers submission to the backend
+  const handleSubmitAnswers = async (answers) => {
+    setLoadingMessage(`Submitting Answers`); // Set loading message
+    setLoading(true); // Enable loading spinner
+
+    try {
+      // Send a POST request with answers to the backend
+      const url = activeChat;
+      const response = await axios.post('/submit_answer', { url, answers });
+      setCategories(response.data.categories);
+
+    } catch (error) {
+      toast.error("Error submitting answers. Please try again."); // Show error toast if request fails
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   // Function to extract just the site name from a full URL
   const getSiteName = (url) => {
@@ -35,76 +133,38 @@ const App = () => {
     return hostname;
   };
 
-  // Handle URL submission and fetch questions
-  const handleSubmitUrl = async (inputUrl) => {
-    setUrl(inputUrl); // Store the input URL
-    setLoadingMessage(`Fetching from ${getSiteName(inputUrl)}`); // Set loading message with site name
-    setLoading(true); // Enable loading spinner
-    setShowModal(false); // Hide the modal until questions are fetched
-
-    try {
-      // Send a POST request to fetch questions for the given URL
-      const response = await axios.post('/scrape', { url: inputUrl });
-
-      // Delay to simulate loading before showing questions
-      setTimeout(() => {
-        setLoading(false); // Stop loading spinner
-        setQuestions(response.data.questions); // Store the fetched questions
-        setShowModal(true); // Show the QuestionModal with questions
-      }, 1000);
-    } catch (error) {
-      toast.error("Error fetching questions. Please try again."); // Show error toast if request fails
-      setLoading(false); // Stop loading spinner
-    }
+  const setChatNames = (sites) => {
+    const chats = [];
+    let counter = 0;
+    sites.forEach(site => {
+      chats.push(site);
+    });
+    setChats(chats);
   };
 
-  // Handle answers submission to the backend
-  const handleSubmitAnswers = async (answers) => {
-    setLoadingMessage(`Submitting Answers`); // Set loading message
-    setLoading(true); // Enable loading spinner
-    setShowModal(false); // Hide the modal while submitting answers
+  if (loading) {
+    return <FunnyLoader message={loadingMessage} />;
+  }
 
-    try {
-      // Send a POST request with answers to the backend
-      const response = await axios.post('/submit_answer', { url, answers });
-
-      // Format the categories and labels into a readable string
-      const formattedCategories = response.data.categories
-        .map(categoryObj => `${categoryObj.category}: ${categoryObj.labels.join(", ")}`)
-        .join("\n\n");
-
-      // Show a success toast with formatted categories and labels
-      toast.success(formattedCategories, {
-        duration: 4000,
-        style: {
-            background: '#4caf50',
-            color: '#fff',
-        }
-      });
-      // Delay to keep loading spinner for a brief time before stopping
-      setTimeout(() => {
-        setLoading(false); // Stop loading spinner
-      }, 500);
-    } catch (error) {
-      toast.error("Error submitting answers. Please try again."); // Show error toast if request fails
-    }
-  };
 
   return (
-    <div className="container text-center mt-5">
+    <div className="app-container">
       {/* Toast container for displaying notifications */}
       <Toaster position="top-center" reverseOrder={false} />
-
-      {/* Show FunnyLoader during loading, otherwise display the HomePage component */}
-      {loading ? <FunnyLoader message={loadingMessage} /> : <HomePage onSubmitUrl={handleSubmitUrl} />}
-
-      {/* QuestionModal component to display questions */}
-      <QuestionModal
-        isOpen={showModal} // Control visibility of modal
-        questions={questions} // Pass questions to modal
-        onClose={() => setShowModal(false)} // Close modal handler
-        onSubmit={handleSubmitAnswers} // Submit answers handler
-      />
+      <Sidebar chats={chats} setActiveChat={setActiveChat} activeChat={activeChat} />
+      {loading ?
+        <FunnyLoader message={loadingMessage} />
+        :
+        <InfoWindow
+          chats={chats} getSiteName={getSiteName}
+          handleSubmitUrl={handleSubmitUrl} activeChat={activeChat}
+          categories={categories} userId={userId}
+          setActiveChat={setActiveChat}
+          questions={questions}
+          onSubmitAnswer={handleSubmitAnswers}
+          summary={summary}
+        />
+      }
     </div>
   );
 }
