@@ -322,11 +322,9 @@ def scrape_website():
 
     try:
         text_content = read_page_content(url)  # Fetch website content
-        print(text_content)
-        summary = get_website_summary(text_content, site_name)
-
-        categories_text = fetch_categories_from_gpt(text_content, site_name)  # Get classification categories
-        questions_text = generate_questions_from_gpt(categories_text, text_content, site_name)  # Generate questions
+        summary = get_website_summary(text_content, site_name, user_id)
+        categories_text = fetch_categories_from_gpt(text_content, site_name, user_id)  # Get classification categories
+        questions_text = generate_questions_from_gpt(categories_text, text_content, site_name, user_id)  # Generate questions
         print("questions_text", questions_text)
         questions = json.loads(questions_text)
         questions['summary'] = summary
