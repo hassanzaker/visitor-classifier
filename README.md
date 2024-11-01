@@ -3,6 +3,8 @@
 
 This project is a **User Classification Tool** that uses web scraping and OpenAI's GPT model to classify users based on their responses to dynamically generated questions. The project consists of a backend built with Flask and a frontend created using React.
 
+The website is accessible through [https://movielads.net/classifier/](https://movielads.net/classifier/).
+
 ## Project Structure
 
 ```
