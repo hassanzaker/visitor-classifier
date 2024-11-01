@@ -103,9 +103,9 @@ def submit_answer():
         return jsonify({'error': 'URL is required'}), 400
 
     # Retrieve cached category data
-    categories_text = redis_client.get("categories_" + url)
+    categories_text = redis_client.get("categories_" + url + "_" + user_id)
 
-    questions = json.loads(redis_client.get(url))['questions']
+    questions = json.loads(redis_client.get(url + "_" + user_id))['questions']
     for i in range(len(questions)):
         questions[i]['answers'] = user_response[i]
 
@@ -188,7 +188,7 @@ def read_page_content(url):
         raise e
 
 
-def fetch_categories_from_gpt(text_content, url):
+def fetch_categories_from_gpt(text_content, url, user_id):
     """Request OpenAI GPT to generate categories based on the website's content theme."""
     try:
         response = client.chat.completions.create(
@@ -223,7 +223,7 @@ def fetch_categories_from_gpt(text_content, url):
         categories_text = [q.strip() for q in categories.split("\n") if q.strip()]
 
         # Cache the categories with the categories_URL as the key
-        redis_client.setex("categories_" + url, 86400, str(categories_text))  # Cache for 1 day (86400 seconds)
+        redis_client.setex("categories_" + url + "_" + user_id, 86400, str(categories_text))  # Cache for 1 day (86400 seconds)
 
 
         return categories_text
@@ -231,7 +231,7 @@ def fetch_categories_from_gpt(text_content, url):
         raise e
 
 
-def generate_questions_from_gpt(categories_text, text_content, url):
+def generate_questions_from_gpt(categories_text, text_content, url, user_id):
     """Request OpenAI GPT to generate classification questions based on content categories."""
     try:
         response = client.chat.completions.create(
@@ -265,7 +265,7 @@ def generate_questions_from_gpt(categories_text, text_content, url):
         questions_text = questions_text.replace("```json", "").replace("```", "").strip()
 
         # Cache the generated questions with the URL as the key
-        redis_client.setex(url, 86400, str(questions_text))  # Cache for 1 day (86400 seconds)
+        redis_client.setex(url + "_" + user_id, 86400, str(questions_text))  # Cache for 1 day (86400 seconds)
 
         return questions_text
 
@@ -273,7 +273,7 @@ def generate_questions_from_gpt(categories_text, text_content, url):
         raise e
 
 
-def get_website_summary(text_content, url):
+def get_website_summary(text_content, url, user_id):
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -298,7 +298,7 @@ def get_website_summary(text_content, url):
         )
         summary = response.choices[0].message.content.strip()
         print(summary)
-        redis_client.setex(url + '_summary', 86400, str(summary))
+        redis_client.setex(url + '_summary' + "_" + user_id, 86400, str(summary))
 
         return summary
     except Exception as e:
@@ -316,7 +316,7 @@ def scrape_website():
     if not url:
         return jsonify({'error': 'URL is required'}), 400
 
-    cached_questions = redis_client.get(site_name)
+    cached_questions = redis_client.get(site_name + "_" + user_id)
     if cached_questions:
         return jsonify(eval(cached_questions)), 200   # Return cached questions if available
 
