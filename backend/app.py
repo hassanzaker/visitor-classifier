@@ -19,6 +19,14 @@ from dynamoDBUtils import *
 import secrets
 
 
+# Set up logging
+logging.basicConfig(filename='/var/log/flaskapp.log', level=logging.DEBUG, 
+                    format='%(asctime)s %(levelname)s: %(message)s')
+
+# Log when Flask app starts
+logging.info("Starting Flask app")
+
+
 # Load environment variables (such as API keys)
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -38,9 +46,10 @@ cache = Cache(app)
 redis_client = redis.StrictRedis(host='localhost', port=6379, db=0, decode_responses=True)
 client = OpenAI()
 
-@app.route('/user', methods=['GET'])
+@app.route('/flask/user', methods=['GET'])
 def get_user_data():
     try:
+	logging.info(request.remote_addr)
         user_id = request.remote_addr
         data = get_visitor(user_id)
 
@@ -68,7 +77,7 @@ def get_user_data():
     except Exception as e:
         return jsonify({'error': 'user data not found!', 'err': str(e)}), 404
 
-@app.route('/question', methods=['GET'])
+@app.route('/flask/question', methods=['GET'])
 def get_question():
     try:
         url = request.args.get('url')
@@ -85,7 +94,7 @@ def get_question():
     except Exception as e:
         return jsonify({'error': 'user data not found!', 'err': str(e)}), 400
 
-@app.route('/submit_answer', methods=['POST'])
+@app.route('/flask/submit_answer', methods=['POST'])
 def submit_answer():
     """Process user's answers, classify based on responses, and return classification labels."""
     data = request.json
@@ -292,7 +301,7 @@ def get_website_summary(text_content, url):
     except Exception as e:
         raise e
 
-@app.route('/scrape', methods=['POST'])
+@app.route('/flask/scrape', methods=['POST'])
 def scrape_website():
     """Scrapes website content, generates categories and questions, and caches the results."""
     data = request.json
@@ -327,7 +336,7 @@ def scrape_website():
         driver.quit()
 
 
-@app.route('/')
+@app.route('/flask/home')
 def home():
     """Root endpoint with a welcome message."""
     return "Welcome!"
