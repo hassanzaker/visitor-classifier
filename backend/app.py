@@ -40,7 +40,8 @@ client = OpenAI()
 @app.route('/flask/user', methods=['GET'])
 def get_user_data():
     try:
-        user_id = request.remote_addr
+        user_id = request.headers.get('X-Forwarded-For', request.remote_addr)
+        # user_id = request.remote_addr
         print("user_id, ", user_id)
         data = get_visitor(user_id)
 
