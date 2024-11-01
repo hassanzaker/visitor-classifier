@@ -18,15 +18,6 @@ from dynamoDBUtils import *
 
 import secrets
 
-
-# Set up logging
-logging.basicConfig(filename='/var/log/flaskapp.log', level=logging.DEBUG, 
-                    format='%(asctime)s %(levelname)s: %(message)s')
-
-# Log when Flask app starts
-logging.info("Starting Flask app")
-
-
 # Load environment variables (such as API keys)
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -49,8 +40,8 @@ client = OpenAI()
 @app.route('/flask/user', methods=['GET'])
 def get_user_data():
     try:
-	logging.info(request.remote_addr)
         user_id = request.remote_addr
+        print("user_id, ", user_id)
         data = get_visitor(user_id)
 
         if data:
